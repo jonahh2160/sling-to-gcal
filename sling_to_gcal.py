@@ -1,4 +1,4 @@
-# sling_to_gcal v0.2 - jonahh2160 4/6/2024
+# sling_to_gcal v0.3 - jonahh2160 4/6/2024
 
 # Import packages
 import os, os.path, datetime, openpyxl
@@ -16,11 +16,13 @@ SCOPES = ["https://www.googleapis.com/auth/calendar"]
 creds = None
 if os.path.exists("token.json"):
     creds = Credentials.from_authorized_user_file("token.json", SCOPES)
+    print("Opened token.json")
 # If there are no (valid) credentials available, let the user log in.
 if not creds or not creds.valid:
     if creds and creds.expired and creds.refresh_token:
       creds.refresh(Request())
     else:
+      print("No valid credentials found, letting user log in...")
       flow = InstalledAppFlow.from_client_secrets_file(
           "credentials.json", SCOPES
       )
@@ -28,10 +30,12 @@ if not creds or not creds.valid:
     # Save the credentials for the next run
     with open("token.json", "w") as token:
       token.write(creds.to_json())
+    print("Saved credentials")
 
 # Change the shift file from .xls to .xlsx (openpyxl only handles .xlsx)
 if os.path.exists('shifts-export.xls'):
     os.rename('shifts-export.xls', 'shifts-export.xlsx')
+    print("Changed shifts-export's file extention")
     
 # Function to sync any given shift from the .xlsx file
 def process_event(date, time_range, description, employee):
@@ -63,16 +67,21 @@ def process_event(date, time_range, description, employee):
     }
     
     event = service.events().insert(calendarId='primary', body=event).execute()
-    print('Event created: %s' % (event.get('htmlLink')))
+    print('Created an event: %s' % (event.get('htmlLink')))
 
 # Try catch block to contain rest of the script's logic
 try:
     # Open the shifts file and get its only worksheet
     wb = openpyxl.load_workbook(filename='shifts-export.xlsx')
     ws = wb.active
+    print("Opened shifts-export.xlsx")
 
     # Set up Google Calendar
     service = build("calendar", "v3", credentials=creds)
+    print("Set up the connection to Calendar")
+
+    print("Processing shifts...")
+    print()
 
     # Loop through every cell, excluding the first row
     for row in range(2, ws.max_row+1):
@@ -109,10 +118,16 @@ try:
                     """
                     
                     # process_event(date, time_range, description, employee)
+    
+    print()
+    input("File finished. Press <ENTER> to exit.")
                 
 except FileNotFoundError:
-    print("File not found! Exiting...")
+    print("File not found! Was the shifts-export file removed?")
+    print("Exiting...")
 except HttpError as e:
     print("An error occurred:", e)
+    print("Exiting...")
 except Exception as e:
     print("An error occurred:", e)
+    print("Exiting...")
