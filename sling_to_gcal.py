@@ -1,8 +1,8 @@
-# sling_to_gcal v0.1 - jonahh2160 4/6/2024
+# sling_to_gcal v0.2 - jonahh2160 4/6/2024
 
 # Import packages
 import os, os.path, datetime, openpyxl
-from stg_functions import process_event
+from stg_conversions import *
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -32,6 +32,38 @@ if not creds or not creds.valid:
 # Change the shift file from .xls to .xlsx (openpyxl only handles .xlsx)
 if os.path.exists('shifts-export.xls'):
     os.rename('shifts-export.xls', 'shifts-export.xlsx')
+    
+# Function to sync any given shift from the .xlsx file
+def process_event(date, time_range, description, employee):
+    # Process date
+    year = datetime.datetime.now().year
+    month, day = convert_date(date)
+    
+    # Process time_range
+    start_hr, start_min, end_hr, end_min = convert_time(time_range)
+    
+    # Process description
+    position, location = convert_desc(description)
+    
+    # TODO: Check if event already exists
+    # If no event exists, then create one
+    event = {
+        "summary": position,
+        "location": location,
+        "description": f"Employee: {employee}",
+        "start": {
+            "dateTime": f"{year}-{month}-{day}T{start_hr}:{start_min}:00"
+        },
+        "end": {
+            "dateTime": f"{year}-{month}-{day}T{end_hr}:{end_min}:00"
+        },
+        "reminders": {
+            "useDefault": True,
+        }
+    }
+    
+    event = service.events().insert(calendarId='primary', body=event).execute()
+    print('Event created: %s' % (event.get('htmlLink')))
 
 # Try catch block to contain rest of the script's logic
 try:
@@ -48,16 +80,35 @@ try:
             # Get the value in the current cell if it has an event
             if ws.cell(row=row, column=col).value is not None:
                 cell_value = ws.cell(row=row, column=col).value
+
+                # First line is always the date
+                date = cell_value.split('\n')[0]
                 
-                print()
-                print(f"-=-=-=-=- CELL ({row}.{col}) -=-=-=-=-")
-                print(cell_value)   
-                print()
+                # Shifts are seperated by double newlines
+                shifts = cell_value.split('\n\n')[1:]
                 
-                # TODO: Get the date, the time_range, the description, and employee
-                # TODO: If there are multiple events for the same day, pass the same day variable
-                # Process events
-                process_event(date, time_range, description, employee)
+                # Process each shift in the cell
+                for shift in shifts:
+                    # Split the string up line by line
+                    lines = shift.split('\n')
+                    
+                    time_range = lines[0]
+                    description = lines[1]
+                    employee = lines[2]
+                    
+                    """
+                    print()
+                    print("-=-=-=-=-=-=-=-=-=-=-=-=-=-=-")
+                    print(shift)
+                    print()
+                    print("Date:", date, convert_date(date))
+                    print("Time:", time_range, convert_time(time_range))
+                    print("Description:", description, convert_desc(description))
+                    print("Employee:", employee)
+                    print()
+                    """
+                    
+                    # process_event(date, time_range, description, employee)
                 
 except FileNotFoundError:
     print("File not found! Exiting...")
