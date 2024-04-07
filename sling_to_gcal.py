@@ -1,4 +1,4 @@
-# sling_to_gcal v0.3 - jonahh2160 4/6/2024
+# sling_to_gcal v0.4 - jonahh2160 4/7/2024
 
 # Import packages
 import os, os.path, datetime, openpyxl
@@ -37,20 +37,18 @@ if os.path.exists('shifts-export.xls'):
     os.rename('shifts-export.xls', 'shifts-export.xlsx')
     print("Changed shifts-export's file extention")
     
-# Function to sync any given shift from the .xlsx file
-def process_event(date, time_range, description, employee):
-    # Process date
-    year = datetime.datetime.now().year
+# Function to create all shifts from the .xlsx file
+def create_event(date, time_range, description, employee):
+    # Convert date
     month, day = convert_date(date)
     
-    # Process time_range
+    # Convert time_range
     start_hr, start_min, end_hr, end_min = convert_time(time_range)
     
-    # Process description
+    # Convert description
     position, location = convert_desc(description)
     
-    # TODO: Check if event already exists
-    # If no event exists, then create one
+    # Set up corresponding event dict
     event = {
         "summary": position,
         "location": location,
@@ -60,14 +58,11 @@ def process_event(date, time_range, description, employee):
         },
         "end": {
             "dateTime": f"{year}-{month}-{day}T{end_hr}:{end_min}:00"
-        },
-        "reminders": {
-            "useDefault": True,
         }
     }
     
-    event = service.events().insert(calendarId='primary', body=event).execute()
-    print('Created an event: %s' % (event.get('htmlLink')))
+    # Add the event to the list of shift events
+    shift_events.append(event)
 
 # Try catch block to contain rest of the script's logic
 try:
@@ -79,11 +74,40 @@ try:
     # Set up Google Calendar
     service = build("calendar", "v3", credentials=creds)
     print("Set up the connection to Calendar")
+    
+    # Check the year
+    print("Grabbing the current year")
+    year = datetime.datetime.now().year
 
-    print("Processing shifts...")
-    print()
+    # Find the ranges of the shifts to check
+    print("Checking range of shifts")
+    # Find the max date by checking the last row right to left
+    for col in range(ws.max_column+1, 1, -1):
+        if ws.cell(row=ws.max_row, column=col).value is not None:
+            max_date = ws.cell(row=ws.max_row, column=col).value
+            max_col = col
+            break
+    # Parse and convert to datetime
+    max_date = max_date.split('\n')[0]
+    max_date = f"{year} {convert_date(max_date)}"
+    max_date = max_date.replace(",", "").replace("(", "").replace(")", "").replace("'", "")
+    max_date = datetime.datetime.strptime(max_date, "%Y %m %d")
+    # Then find the min date by offset
+    day_offset = (7 * (ws.max_row - 2)) + max_col - 1
+    min_date = (max_date - datetime.timedelta(days = day_offset)).isoformat()
+    max_date = (max_date.replace(hour=23, minute=59, second=59)).isoformat() 
+    
+    # Use the acquired ranges to get a list of the current shifts
+    print("Getting existing shifts from Calendar")
+    # TODO: Find a way to decide what the keyword and the timezone (-07:00) should be
+    keyword = "Clerk"
+    events_result = service.events().list(calendarId='primary', q="Clerk", timeMin=f"{min_date}-07:00", timeMax=f"{max_date}-07:00").execute()
+    current_events = events_result.get('items', [])
+    shift_events = []
 
     # Loop through every cell, excluding the first row
+    print("Processing files...")
+    print()
     for row in range(2, ws.max_row+1):
         for col in range(1, ws.max_column+1):
             # Get the value in the current cell if it has an event
@@ -117,17 +141,27 @@ try:
                     print()
                     """
                     
-                    # process_event(date, time_range, description, employee)
+                    # TODO: Remember to look into offsetting it by ten minutes
+                    create_event(date, time_range, description, employee)
+    
+    # Compare shift_events and current_events
+    # TODO: Is it possible to move this block back into create_event function?
+    # TODO: If events exist in current events but not in shift events, delete
+    # TODO: If an event exists in both, update
+    # TODO: Else, create a new event and print('Created an event: %s' % (event.get('htmlLink')))
     
     print()
     input("File finished. Press <ENTER> to exit.")
                 
+# Error handling
 except FileNotFoundError:
-    print("File not found! Was the shifts-export file removed?")
-    print("Exiting...")
+    print()
+    print("File not found! Was the shifts-export file removed? Exiting...")
 except HttpError as e:
-    print("An error occurred:", e)
+    print()
+    print("An error occurred:", e, end="\n\n")
     print("Exiting...")
 except Exception as e:
-    print("An error occurred:", e)
+    print()
+    print("An error occurred:", e, end="\n\n")
     print("Exiting...")
