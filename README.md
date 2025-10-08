@@ -1,6 +1,6 @@
 # sling-to-gcal
 
-Python script to import Sling .xls shift schedules into Google Calendar
+W.I.P. Python script to import Sling .xls shift schedules into Google Calendar
 
 ## Description
 
