@@ -1,6 +1,6 @@
-# sling-to-gcal
+# sling-to-gcal (DEPRECATED)
 
-W.I.P. Python script to import Sling .xls shift schedules into Google Calendar
+Deprecated Python script to import Sling .xls shift schedules into Google Calendar. This W.I.P. script was discontinued as my organization did not renew their contract with Sling, instead migrating to another platform for shift scheduling.
 
 ## Description
 
